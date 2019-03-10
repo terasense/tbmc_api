@@ -13,7 +13,8 @@ from tbmc_dev import TBMCDev, TRIG, STATUS
 
 opt_channels = None
 rdy_timeout = 1.
-loops = 1
+cmd_length = 512
+loops = 1000
 
 def parse_args():
 	global opt_channels
@@ -34,12 +35,10 @@ def main():
 
 	print '%s, testing %d channels' % (dev, channels)
 
-	cmd_length = 512
-
 	dev.configure_chans(channels)
 	dev.configure_freq(23, 10, 5)
 	dev.configure_rst(100, 100)
-	dev.configure_tx(cmd_length)
+	dev.configure_tx(cmd_length, tx_fast=False, b16=True)
 	dev.configure_rx(cmd_length, wait=True, loopback=True)
 
 	data = ''
@@ -61,11 +60,12 @@ def main():
 		res = dev.rx_buff_read_all(cmd_length, channels)
 		for i, buff in enumerate(res): 
 			if buff != data:
-				print '\nerror in channel %d' % i
+				print >> sys.stderr, '\nerror in channel %d' % i
 				for ch in buff:
 					print '%x' % ord(ch)
 				return -1
 
+	print '\ndone'
 	return 0
 
 if __name__ == '__main__':

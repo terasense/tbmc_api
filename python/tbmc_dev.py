@@ -102,6 +102,23 @@ class TBMCDev(MmDev):
 		"""Wait ready status (after reset or srq)"""
 		return self.wait_status(STATUS.ready, ~STATUS.ready, tout)
 
+	def find_not_ready(self):
+		"""Returns index of the first not ready channel or None"""
+		mask = self.peek(TBMCDev.rd_input_state)
+		for n in range(self.channels):
+			if (1 << n) & mask:
+				return n
+		return None
+
+	def count_not_ready(self):
+		"""Returns the number of not ready channels"""
+		cnt = 0
+		mask = self.peek(TBMCDev.rd_input_state)
+		for n in range(self.channels):
+			if (1 << n) & mask:
+				cnt += 1
+		return cnt
+
 	def trigger(self, what):
 		"""Trigger action"""
 		self.poke(TBMCDev.wr_triggers, 1 << what)
@@ -112,13 +129,13 @@ class TBMCDev(MmDev):
 
 	def configure_freq(self, div, interval, xinterval):
 		"""
-		Setup the bus clock divider and byte transmission intervals
-		in usec for normal and fast transmission modes.
-		The resulting bus clock frequency will be 25/(div+1) MHz. 
+		Setup the bus clock divider and byte transmission intervals for normal and fast
+		transmission modes. The resulting bus clock frequency will be 25/(div+1) MHz.
+		The interval units are the half of the bus clock period.
 		"""
 		assert 0 <= div and div < 256
-		assert 0 < interval and interval < 256
-		assert 0 < xinterval and xinterval < 256
+		assert 2 < interval and interval < 256
+		assert 2 < xinterval and xinterval < 256
 		self.poke(TBMCDev.wr_freq_ctl, div | (interval << 8) | (xinterval << 24))
 
 	def configure_rst(self, rst_time, rst_hold):
