@@ -67,7 +67,7 @@ def random_test(dev, chs):
 
 	assert len(expect) == rx_len
 
-	dev.wait_status(STATUS.data_rdy | STATUS.completed, STATUS.active)
+	dev.wait_status(STATUS.data_rdy | STATUS.completed, STATUS.active, tout=rdy_timeout)
 
 	if dev.status() & STATUS.ready:
 		assert dev.find_not_ready() is None

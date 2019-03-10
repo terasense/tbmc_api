@@ -58,6 +58,8 @@ class TBMCDev(MmDev):
 	max_cmd_length = 512
 	# the single channel rx buffer size
 	max_rx_length  = 2048
+	# the amount of data that may safely read in streaming mode provided that the data_rdy status is set
+	rx_buff_chunk  = max_rx_length / 2
 
 	def __init__(self):
 		"""Create device instance"""
