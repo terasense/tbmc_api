@@ -36,7 +36,8 @@ def main():
 	print '%s, testing %d channels' % (dev, channels)
 
 	dev.configure_chans(channels)
-	dev.configure_freq(23, 10, 5)
+	# Use the fastest rate - 25MHz
+	dev.configure_freq(0, 3, 3)
 	dev.configure_rst(100, 100)
 	dev.configure_tx(cmd_length, tx_fast=False, b16=True)
 	dev.configure_rx(cmd_length, wait=True, loopback=True)

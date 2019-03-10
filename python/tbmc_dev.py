@@ -65,6 +65,7 @@ class TBMCDev(MmDev):
 		"""Create device instance"""
 		MmDev.__init__(self, TBMCDev.name)
 		self.read_version()
+		self.stash = None
 
 	def read_version(self):
 		"""Read controller version information"""
@@ -123,6 +124,8 @@ class TBMCDev(MmDev):
 
 	def trigger(self, what):
 		"""Trigger action"""
+		if what == TRIG.reset:
+			self.stash = None
 		self.poke(TBMCDev.wr_triggers, 1 << what)
 
 	def configure_chans(self, channels):
@@ -176,19 +179,70 @@ class TBMCDev(MmDev):
 		assert 0 < sz and sz <= TBMCDev.max_cmd_length
 		self.write16(TBMCDev.wr_cmd_buff, buff)
 
+	@staticmethod
+	def round32(sz):
+		"""Round size to 32 bit boundary"""
+		if sz & 3: sz += 4 - (sz & 3)
+		return sz
+
+	@staticmethod
+	def round16(sz):
+		"""Round size to 16 bit boundary"""
+		if sz & 1: sz += 1
+		return sz
+
 	def rx_buff_read(self, sz):
 		"""Read data from the receiver buffer"""
-		sz_ = sz
 		# Round to 4 bytes boundary Note that you can read any number
 		# of bytes past the end of the buffer. They will be zero.
-		if sz_ & 3: sz_ += 4 - (sz_ & 3)
+		sz_ = self.round32(sz)
 		buff = self.read(TBMCDev.rd_rx_buff, sz_)
+		assert sz == sz_ or buff[sz] == '\0'
 		return buff[0:sz]
 
 	def rx_buff_read_all(self, sz, chs):
 		"""Read data from the receiver buffer for all channels"""
-		sz_ = sz
-		if sz_ % 2: sz_ += 1
+		sz_ = self.round16(sz)
 		assert 0 < sz_ and sz_ <= TBMCDev.max_rx_length
 		buff = self.rx_buff_read(sz_ * chs)
 		return [str(buff[i*sz_:i*sz_+sz]) for i in range(chs)]
+
+	def rx_buff_read_all_skipz(self, sz, chs, tout = None):
+		"""Read data string from the receiver buffer for all channels skipping leading zeros"""
+		if tout:
+			deadline = time.time() + tout
+		sz_ = self.round16(sz)
+		assert 0 < sz_ and sz_ <= TBMCDev.max_rx_length
+		total = sz_ * chs
+		res, left = None, total
+		if self.stash:
+			res, self.stash = self.stash, None
+			left -= len(res)
+			assert left > 0
+
+		while True:
+			left_ = self.round32(left)
+			buff = self.read(TBMCDev.rd_rx_buff, left_)
+			if res:
+				res += buff[:]
+				left -= len(buff)
+				break
+			# skip zero byte prefix
+			try:
+				skip = (i for i, c in enumerate(buff) if c != '\0').next()
+				res = buff[skip:]
+				left -= len(res)
+				if left <= 0:
+					break
+			except StopIteration:
+				# no non-zero data in the buffer
+				if tout and time.time() > deadline:
+					raise RuntimeError('%s timeout (%f sec) waiting data (%d bytes), status %#x' % (self, tout, left, self.status()))
+
+		assert left <= 0
+		if left < 0 and res[left] != '\0':
+			self.stash = res[left:]
+
+		assert res[0]
+		assert len(res) + left == sz_ * chs
+		return [str(res[i*sz_:i*sz_+sz]) for i in range(chs)]
