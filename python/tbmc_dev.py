@@ -172,11 +172,7 @@ class TBMCDev(MmDev):
 
 	def cmd_put(self, buff):
 		"""Write command string to the command buffer"""
-		sz = len(buff)
-		if sz % 2:
-			buff += '\0'
-			sz += 1
-		assert 0 < sz and sz <= TBMCDev.max_cmd_length
+		assert len(buff) <= TBMCDev.max_cmd_length
 		self.write16(TBMCDev.wr_cmd_buff, buff)
 
 	@staticmethod
@@ -205,44 +201,48 @@ class TBMCDev(MmDev):
 		sz_ = self.round16(sz)
 		assert 0 < sz_ and sz_ <= TBMCDev.max_rx_length
 		buff = self.rx_buff_read(sz_ * chs)
-		return [str(buff[i*sz_:i*sz_+sz]) for i in range(chs)]
+		return [buff[i*sz_:i*sz_+sz] for i in range(chs)]
 
-	def rx_buff_read_all_skipz(self, sz, chs, tout = None):
-		"""Read data string from the receiver buffer for all channels skipping leading zeros"""
+	def rx_buff_read_all_on_ready(self, sz, chs, tout = None, idle_cb = None):
+		"""
+		Read data string from the receiver buffer for all channels waiting until the data is ready.
+		The caller may provide optional timeout and idle callback.
+		"""
+		def do_idle():
+			time.sleep(0)
+		if idle_cb is None:
+			idle_cb = do_idle
 		if tout:
 			deadline = time.time() + tout
+		while True:
+			res = self.rx_buff_read_all_skipz(sz, chs)
+			if res is not None:
+				return res
+			if tout and time.time() > deadline:
+				raise RuntimeError('%s timeout (%f sec) waiting data (%d bytes) for %d channels, status %#x'\
+					% (self, tout, sz, chs, self.status()))
+			idle_cb()
+
+	def rx_buff_read_all_skipz(self, sz, chs, skipz_count = 64):
+		"""
+		Read data string from the receiver buffer for all channels skipping leading zero words.
+		The zero words are read whenever data is not ready. In case the data is not ready the routine
+		just give up quickly and return None.
+		"""
 		sz_ = self.round16(sz)
 		assert 0 < sz_ and sz_ <= TBMCDev.max_rx_length
 		total = sz_ * chs
-		res, left = None, total
-		if self.stash:
-			res, self.stash = self.stash, None
-			left -= len(res)
-			assert left > 0
 
-		while True:
-			left_ = self.round32(left)
-			buff = self.read(TBMCDev.rd_rx_buff, left_)
-			if res:
-				res += buff[:]
-				left -= len(buff)
-				break
-			# skip zero byte prefix
-			try:
-				skip = (i for i, c in enumerate(buff) if c != '\0').next()
-				res = buff[skip:]
-				left -= len(res)
-				if left <= 0:
-					break
-			except StopIteration:
-				# no non-zero data in the buffer
-				if tout and time.time() > deadline:
-					raise RuntimeError('%s timeout (%f sec) waiting data (%d bytes), status %#x' % (self, tout, left, self.status()))
+		buff, bsz = self.read_ex(TBMCDev.rd_rx_buff, total, self.stash,
+			skipz_count if self.stash is None else 0)
 
-		assert left <= 0
-		if left < 0 and res[left] != '\0':
-			self.stash = res[left:]
+		if not bsz:
+			# data not ready
+			return None
 
-		assert res[0]
-		assert len(res) + left == sz_ * chs
-		return [str(res[i*sz_:i*sz_+sz]) for i in range(chs)]
+		if bsz > total and buff[total] != '\0':
+			self.stash = buff[total:bsz]
+		else:
+			self.stash = None
+
+		return [buff[i*sz_:i*sz_+sz] for i in range(chs)]

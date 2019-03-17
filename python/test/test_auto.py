@@ -84,7 +84,7 @@ def random_test(dev, chs):
 	dev.trigger(TRIG.auto)
 
 	for fr in range(auto_fr):
-		r = dev.rx_buff_read_all_skipz(rx_len, chs)
+		r = dev.rx_buff_read_all_on_ready(rx_len, chs, tout=rdy_timeout)
 		err = False
 		for c, resp in enumerate(r):
 			if resp != expect:
