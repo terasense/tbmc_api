@@ -89,7 +89,7 @@ class TBUSCtl:
 	def __str__(self):
 		if self.chain is None:
 			return '%s uninitialized' % self.dev
-		return '%s %dx%d modules v.%x' % (self.dev, self.cfg.nchannels, self.chain)
+		return '%s %dx%d modules v.%x' % (self.dev, self.cfg.nchannels, self.chain, self.mod_version)
 
 	def _mk_cmd(self, cmd_code, addr = 0, data = None, data_len = None):
 		"""Create and return T-BUS command"""
