@@ -136,13 +136,13 @@ class TBMCDev(MmDev):
 	def configure_freq(self, div, interval, xinterval):
 		"""
 		Setup the bus clock divider and byte transmission intervals for normal and fast
-		transmission modes. The resulting bus clock frequency will be 25/(div+1) MHz.
+		transmission modes. The resulting bus clock frequency will be 25/div MHz.
 		The interval units are the half of the bus clock period.
 		"""
-		assert 0 <= div and div < 256
+		assert 0 < div and div <= 256
 		assert 2 < interval and interval < 256
 		assert 2 < xinterval and xinterval < 256
-		self.poke(TBMCDev.wr_freq_ctl, div | (interval << 8) | (xinterval << 24))
+		self.poke(TBMCDev.wr_freq_ctl, (div - 1) | (interval << 8) | (xinterval << 24))
 
 	def configure_rst(self, rst_time, rst_hold):
 		"""Setup reset parameters - reset time and clock hold time for hard reset, both in usec."""
