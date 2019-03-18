@@ -54,7 +54,7 @@ class TBMCDev(MmDev):
 	rd_rx_buff     = 6
 
 	# other constants:
-	master_clk = 50000000
+	master_clk = 25000000
 	# the command buffer size
 	max_cmd_length = 512
 	# the single channel rx buffer size
