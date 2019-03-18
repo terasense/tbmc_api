@@ -21,7 +21,7 @@ class MmDev:
 			self.addr = int(addr, 16)			
 			break
 		else:
-			raise RuntimeError(name + 'not found')
+			raise RuntimeError(name + ' not found')
 
 		assert self.addr % 4096 == 0
 		with open('/dev/mem', 'r+') as f:
