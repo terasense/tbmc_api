@@ -161,19 +161,12 @@ class TBUSCtl:
 						tb.cmd_names[resp_[0]], ord(resp[i]), chan
 					))
 
-	@staticmethod
-	def rx_pad_size(sz):
-		"""
-		Round the data size to 16 bit boundary (controller and modules operate on 16 bit words internally)
-		and add yet another 2 bytes to validate the bus (they should be zero on receive).
-		"""
-		return sz + (sz & 1) + 2  # make it even and pad with zero bytes
-
 	def _send_cmd(self, cmd_code, addr, data, check_data):
 		"""Send command and returns the array of responses"""
 		wait = (cmd_code==tb.cmd_wait)
 		cmd = self._mk_cmd(cmd_code, addr, data)
-		rx_len = TBUSCtl.rx_pad_size(len(cmd))
+		sz = len(cmd)
+		rx_len = sz + (sz & 1) + 2  # make it even and pad with zero bytes
 		tx_idle = (self.cfg.tbus_tx_idle, self.cfg.tbus_wt_idle)[wait]
 
 		self.dev.configure_freq(self.cfg.tbus_clk_div, tx_idle, self.cfg.tbus_turbo_idle)
@@ -211,67 +204,69 @@ class TBUSCtl:
 		"""Issue wait command"""
 		self.bus_cmd(tb.cmd_wait)
 
-	def bus_read_raw(self, addr, data_len):
+	def bus_read_(self, addr, data_len):
 		"""
 		Send read command. Raise exception if the command status is not success.
-		Returns the array of (number of responses, data) tuples.
+		Returns buffer, slice list tuple.
 		"""
 		assert data_len > 0
 		assert (data_len & 1) == 0
+		total_sz = tb.hdr_sz + data_len * self.chain
 
-		resp_sz = data_len * self.chain
-		total_sz = tb.hdr_sz + resp_sz
-		total_sz_ = TBUSCtl.rx_pad_size(total_sz)
-		stream_mode = total_sz_ > TBMCDev.max_rx_length
-
-		log.dbg('%s %d bytes', 'streaming' if stream_mode else 'reading', data_len)
+		log.dbg('reading %d bytes (%d bytes per channel)', data_len, total_sz)
 
 		cmd = self._mk_cmd(tb.cmd_read, addr, None, data_len)
 		assert len(cmd) == tb.hdr_sz
 
 		self.dev.configure_freq(self.cfg.tbus_clk_div, self.cfg.tbus_tx_idle, self.cfg.tbus_turbo_idle)
 		self.dev.configure_tx(len(cmd), tx_fast = True, b16 = True)
-		self.dev.configure_rx(0 if stream_mode else total_sz_, skip = 4 * self.chain)
+		self.dev.configure_rx(total_sz, skip = 4 * self.chain)
 
 		self.dev.cmd_put(cmd)
 		self.dev.trigger(TRIG.start)
+		self.dev.wait_status(STATUS.data_rdy, 0, tout=self.cfg.tbus_timeout)
 
-		r = [None] * self.cfg.nchannels
-		while total_sz_ > 0:
-			self.dev.wait_status(STATUS.data_rdy, 0, tout=self.cfg.tbus_timeout)
-			chunk_data = self.dev.rx_buff_read_all(TBMCDev.rx_buff_chunk if stream_mode else total_sz_, self.cfg.nchannels)
-			assert len(chunk_data) == self.cfg.nchannels
-			for i, resp in enumerate(chunk_data):
-				if r[i] is None: r[i] = []
-				r[i].append(resp[:total_sz_])
-			total_sz_ -= len(resp)
-
-		if stream_mode:
-			self.dev.trigger(TRIG.stop)
-			self.dev.wait_status(STATUS.ready, STATUS.active, tout=self.cfg.tbus_timeout)
-
-		chan_data = [''.join(chunks) for chunks in r]
-		for i, data in enumerate(chan_data):
-			rcnt = self._check_resp_hdr(cmd, data, i)
+		buff, ranges = self.dev.rx_buff_read_all_(total_sz, self.cfg.nchannels)
+		for i, r in enumerate(ranges):
+			rcnt = self._check_resp_hdr(cmd, buff[r.start:r.start+tb.hdr_sz], i)
 			if rcnt != self.chain:
 				raise RuntimeError('unexpected number of responses in channel %d: expected %d, received %d' % (i, self.chain, rcnt))
-			self._check_resp_idle(data, total_sz, i)
 
-		return (self.modules, ''.join([data[tb.hdr_sz:total_sz] for data in chan_data]))
+		return buff, [slice(r.start + tb.hdr_sz, r.stop) for r in ranges]
 
-	def bus_read_auto(self, data_len, idle_cb):
+	def bus_read_auto_(self, data_len, idle_cb):
 		"""
 		Read data frame in auto mode.
 		We rely on the fact that controller registers are already initialized by previous data acquisition
-		so we just read the data when it becomes available.
+		so we just read the data when it becomes available. Returns buffer, slice list tuple.
 		"""
 		assert data_len > 0
 		assert (data_len & 1) == 0
 		total_sz = tb.hdr_sz + data_len * self.chain
-		total_sz_ = TBUSCtl.rx_pad_size(total_sz)
-		all_data = self.dev.rx_buff_read_all_on_ready(total_sz_, self.cfg.nchannels, tout=self.cfg.tbus_timeout, idle_cb=idle_cb)
-		assert len(all_data) == self.cfg.nchannels
-		return (self.modules, ''.join([chan_data[tb.hdr_sz:total_sz] for chan_data in all_data]))
+		buff, ranges = self.dev.rx_buff_read_all_on_ready_(total_sz, self.cfg.nchannels, tout=self.cfg.tbus_timeout, idle_cb=idle_cb)
+		return buff, [slice(r.start + tb.hdr_sz, r.stop) for r in ranges]
+
+	def bus_read_raw(self, addr, data_len):
+		"""
+		Send read command. Raise exception if the command status is not success.
+		Returns the data read from all channels as single string.
+		"""
+		buff, ranges = self.bus_read_(addr, data_len)
+		return ''.join([buff[r] for r in ranges])
+
+	def bus_read(self, addr, data_len):
+		"""Read data from the specified address. Returns the array of the data responses."""
+		data_len_ = data_len + (data_len & 1)
+		data = self.bus_read_raw(addr, data_len_)
+		return [data[i*data_len_:i*data_len_+data_len] for i in range(self.modules)]
+
+	def bus_read_struct(self, addr, fmt):
+		"""
+		Read data from the specified address and parse it according to specified format.
+		Returns the array of the data tuples.
+		"""
+		data = self.bus_read(addr, struct.calcsize(fmt))
+		return [struct.unpack(fmt, d) for d in data]
 
 	def bus_read_coherent(self, addr, data_len):
 		"""
@@ -289,27 +284,13 @@ class TBUSCtl:
 
 		return (self.modules, buff)
 
-	def bus_read(self, addr, data_len):
-		"""Read data from the specified address. Returns the array of the data responses."""
-		data_len_ = data_len + (data_len & 1)
-		r = self.bus_read_raw(addr, data_len_)
-		return [r[1][i*data_len_:i*data_len_+data_len] for i in range(r[0])]
-
-	def bus_read_struct(self, addr, fmt):
-		"""
-		Read data from the specified address and parse it according to specified format.
-		Returns the array of the data tuples.
-		"""
-		r = self.bus_read(addr, struct.calcsize(fmt))
-		return [struct.unpack(fmt, d) for d in r]
-
 	def bus_read_struct_coherent(self, addr, fmt):
 		"""
 		Read coherent data from the specified address and parse it according to specified format
 		Returns (r_cnt, data_tuple) tuple.
 		"""
-		r = self.bus_read_coherent(addr, struct.calcsize(fmt))
-		return (r[0], struct.unpack(fmt, r[1]))
+		r_cnt, data = self.bus_read_coherent(addr, struct.calcsize(fmt))
+		return (r_cnt, struct.unpack(fmt, data))
 
 
 if __name__ == '__main__':

@@ -55,8 +55,8 @@ def configure(ctl, conf):
 	else:
 		log.notice('applet is already loaded to flash')
 
-def acquire_raw(ctl, conf):
-	"""Execute applet and returns (number of module responses, raw data string) tuple"""
+def acquire(ctl, conf):
+	"""Execute applet and returns results as numpy array"""
 	log.notice('starting applet ..')
 	srq_sync(ctl, tmod.srq_proc, 0, conf._start_address, struct.pack(
 			'HBB',
@@ -65,21 +65,19 @@ def acquire_raw(ctl, conf):
 			conf.adc_sh_time | (conf.adc_clk_div << 2 ) | (conf.no_cdc << 5) | (conf.temp_test << 6) | (conf.vcc_ref << 7)
 		), conf.read_delay)
 	log.notice("reading results ..")
-	r = ctl.bus_read_raw(tmod.srq_buff_addr + 4, data_len)
-	return r
+	buff, ranges = ctl.bus_read_(tmod.srq_buff_addr + 4, data_len)
+	return array_from_buff(buff, ranges, ctl.modules)
 
-def array_from_raw(data):
-	"""Create numpy array from raw data"""
-	a = np.fromstring(data[1], dtype=np.int16)
-	assert a.size == data_channels * data[0]
-	if np.any(a >= max_data_value):
-		raise RuntimeError('the data is out of valid range')
-	return np.reshape(a, (a.size/data_channels, data_channels))
-
-def acquire(ctl, conf):
-	"""Execute applet and returns results as numpy array"""
-	data = acquire_raw(ctl, conf)
-	return array_from_raw(data)
+def array_from_buff(buff, ranges, modules):
+	"""Create numpy array from raw data buffer and list of ranges"""
+	data = np.empty((modules, data_channels), dtype=np.int16)
+	off = 0
+	for r in ranges:
+		sz = r.stop - r.start
+		data.data[off:off+sz] = buff[r]
+		off += sz
+	assert off == len(data.data)
+	return data
 
 def run_auto(ctl):
 	"""
@@ -90,8 +88,8 @@ def run_auto(ctl):
 
 def acquire_auto(ctl, idle_cb=None):
 	"""Acquire next data frame in auto mode"""
-	data = ctl.bus_read_auto(data_len, idle_cb=idle_cb)
-	return array_from_raw(data)
+	buff, ranges = ctl.bus_read_auto_(data_len, idle_cb=idle_cb)
+	return array_from_buff(buff, ranges, ctl.modules)
 
 
 if __name__ == '__main__':

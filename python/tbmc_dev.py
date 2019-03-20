@@ -190,24 +190,46 @@ class TBMCDev(MmDev):
 
 	def rx_buff_read(self, sz):
 		"""Read data from the receiver buffer"""
+		buff, range = self.rx_buff_read_(sz)
+		return buff[range]
+
+	def rx_buff_read_(self, sz):
+		"""Read data from the receiver buffer. Returns buffer, slice tuple."""
 		# Round to 4 bytes boundary Note that you can read any number
 		# of bytes past the end of the buffer. They will be zero.
 		sz_ = self.round32(sz)
 		buff = self.read(TBMCDev.rd_rx_buff, sz_)
 		assert sz == sz_ or buff[sz] == '\0'
-		return buff[0:sz]
+		return buff, slice(0, sz)
 
 	def rx_buff_read_all(self, sz, chs):
 		"""Read data from the receiver buffer for all channels"""
+		buff, ranges = self.rx_buff_read_all_(sz, chs)
+		return [buff[r] for r in ranges]
+
+	def rx_buff_read_all_(self, sz, chs):
+		"""
+		Read data from the receiver buffer for all channels.
+		Returns buffer, slice list tuple.
+		"""
 		sz_ = self.round16(sz)
 		assert 0 < sz_ and sz_ <= TBMCDev.max_rx_length
 		buff = self.rx_buff_read(sz_ * chs)
-		return [buff[i*sz_:i*sz_+sz] for i in range(chs)]
+		return buff, [slice(i*sz_, i*sz_+sz) for i in range(chs)]
 
 	def rx_buff_read_all_on_ready(self, sz, chs, tout = None, idle_cb = None):
 		"""
 		Read data string from the receiver buffer for all channels waiting until the data is ready.
 		The caller may provide optional timeout and idle callback.
+		"""
+		buff, ranges = self.rx_buff_read_all_on_ready_(sz, chs, tout, idle_cb)
+		return [buff[r] for r in ranges]
+
+	def rx_buff_read_all_on_ready_(self, sz, chs, tout = None, idle_cb = None):
+		"""
+		Read data string from the receiver buffer for all channels waiting until the data is ready.
+		The caller may provide optional timeout and idle callback.
+		Returns buffer, slice list tuple.
 		"""
 		def do_idle():
 			time.sleep(0)
@@ -216,7 +238,7 @@ class TBMCDev(MmDev):
 		if tout:
 			deadline = time.time() + tout
 		while True:
-			res = self.rx_buff_read_all_skipz(sz, chs)
+			res = self.rx_buff_read_all_skipz_(sz, chs)
 			if res is not None:
 				return res
 			if tout and time.time() > deadline:
@@ -224,11 +246,11 @@ class TBMCDev(MmDev):
 					% (self, tout, sz, chs, self.status()))
 			idle_cb()
 
-	def rx_buff_read_all_skipz(self, sz, chs, skipz_count = 64):
+	def rx_buff_read_all_skipz_(self, sz, chs, skipz_count = 64):
 		"""
 		Read data string from the receiver buffer for all channels skipping leading zero words.
 		The zero words are read whenever data is not ready. In case the data is not ready the routine
-		just give up quickly and return None.
+		just give up quickly and return None. Returns buffer, slice list tuple on success.
 		"""
 		sz_ = self.round16(sz)
 		assert 0 < sz_ and sz_ <= TBMCDev.max_rx_length
@@ -246,7 +268,7 @@ class TBMCDev(MmDev):
 		else:
 			self.stash = None
 
-		return [buff[i*sz_:i*sz_+sz] for i in range(chs)]
+		return buff, [slice(i*sz_, i*sz_+sz) for i in range(chs)]
 
 
 if __name__ == '__main__':

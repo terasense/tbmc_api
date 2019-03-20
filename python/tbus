@@ -196,7 +196,7 @@ def main():
 		print ctl
 		return 0
 
-	if opt_n != 1:
+	if opt_n > 1:
 		if opt_err_continue:
 			log.inf('looping %d times, errors ignored', opt_n)
 		else:
@@ -216,6 +216,9 @@ def main():
 				traceback.print_exc()
 		if (log.level < log.l_dbg) and (i % 100 == 99):
 			print >> sys.stderr, '.',
+
+	if opt_n > 1:
+		print >> sys.stderr
 
 	return 0
 
