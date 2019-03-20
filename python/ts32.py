@@ -79,20 +79,43 @@ def acquire(ctl, conf):
 	return array_from_raw(data)
 
 if __name__ == '__main__':
-	import tbmc_dev
-	import tbus_ctl
+	import getopt, time
+	from tbmc_dev import TBMCDev
+	from tbus_ctl import TBUSCtl
 	import config.tbus_conf as tbus_conf
 	import config.ts32_conf as applet_conf
-	if '-v' in sys.argv:
-		# verbose
-		log.level = log.l_trc
-	if '-l' in sys.argv:
-		# long output
-		np.set_printoptions(threshold='nan')
 
-	dev = tbmc_dev.TBMCDev()
-	ctl = tbus_ctl.TBUSCtl(dev, tbus_conf)
-	ctl.bus_init()
+	def main():
+		try:
+			optlist, args = getopt.getopt(sys.argv[1:], 'vln:')
+		except getopt.GetoptError:
+			log.err('invalid command line options' + ': ' + repr(sys.argv[1:]))
+			return -1
 
-	configure(ctl, applet_conf)
-	print acquire(ctl, applet_conf)
+		if args:
+			log.err('unexpected args: %s', args)
+			return -1
+
+		n = 1
+		for opt, arg in optlist:
+			if opt == '-v':
+				log.level += 1
+			elif opt == '-l':
+				# long output
+				np.set_printoptions(threshold='nan')
+			elif opt == '-n':
+				n = int(arg)
+
+		ctl = TBUSCtl(TBMCDev(), tbus_conf)
+		ctl.bus_init()
+
+		configure(ctl, applet_conf)
+		started = time.time()
+		for i in range(n):
+			data = acquire(ctl, applet_conf)
+			print '#%d' % (i + 1), time.time() - started
+			print data
+
+		print >> sys.stderr, 'done with %.3f FPS' % (n / (time.time() - started),)
+
+	sys.exit(main())
