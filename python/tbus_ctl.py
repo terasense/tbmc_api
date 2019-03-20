@@ -163,6 +163,10 @@ class TBUSCtl:
 
 	@staticmethod
 	def rx_pad_size(sz):
+		"""
+		Round the data size to 16 bit boundary (controller and modules operate on 16 bit words internally)
+		and add yet another 2 bytes to validate the bus (they should be zero on receive).
+		"""
 		return sz + (sz & 1) + 2  # make it even and pad with zero bytes
 
 	def _send_cmd(self, cmd_code, addr, data, check_data):
@@ -256,7 +260,11 @@ class TBUSCtl:
 		return (self.modules, ''.join([data[tb.hdr_sz:total_sz] for data in chan_data]))
 
 	def bus_read_auto(self, data_len, idle_cb):
-		"""Read data frame in auto mode"""
+		"""
+		Read data frame in auto mode.
+		We rely on the fact that controller registers are already initialized by previous data acquisition
+		so we just read the data when it becomes available.
+		"""
 		assert data_len > 0
 		assert (data_len & 1) == 0
 		total_sz = tb.hdr_sz + data_len * self.chain
