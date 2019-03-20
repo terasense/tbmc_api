@@ -247,3 +247,8 @@ class TBMCDev(MmDev):
 			self.stash = None
 
 		return [buff[i*sz_:i*sz_+sz] for i in range(chs)]
+
+
+if __name__ == '__main__':
+	dev = TBMCDev()
+	print dev
