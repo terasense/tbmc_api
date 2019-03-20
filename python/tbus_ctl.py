@@ -36,7 +36,7 @@ class TBUSCtl:
 
 	def bus_init(self, force_load = False):
 		"""Initialize controller"""
-		log.notice('%s' % self.dev)
+		log.notice('%s', self.dev)
 		if self.dev.channels < self.cfg.nchannels:
 			raise RuntimeError('controller supports %d channels, %d channels required' % (self.dev.channels, self.cfg.nchannels))
 
@@ -67,7 +67,7 @@ class TBUSCtl:
 			va, vb = struct.unpack('BB', d[tbus.hdr_sz:tbus.hdr_sz+2])
 			if va != vb:
 				raise RuntimeError('mixed module versions in channel #%d' % i)
-			log.dbg('    #%d: %d modules v.%x' % (i, rcnt, va))
+			log.dbg('    #%d: %d modules v.%x', i, rcnt, va)
 			if chain is None:
 				chain, mod_version = rcnt, va
 			else:
@@ -98,7 +98,7 @@ class TBUSCtl:
 		assert (data_len == 0) == ((cmd_code & tbus.cmd_has_data_) == 0)
 		len1 = data_len - 1 if (cmd_code & tbus.cmd_has_data_) else 0
 		assert 0 <= len1 and len1 < tbus.max_data_length
-		log.dbg('  BUS %-5s @%x %d bytes' % (tbus.cmd_names[cmd_code], addr, data_len))
+		log.dbg('  BUS %-5s @%x %d bytes', tbus.cmd_names[cmd_code], addr, data_len)
 		hdr = struct.pack(tbus.hdr_fmt, cmd_code, len1, addr,
 			0 if self.cfg.skip_cmd_cookies else int(random.getrandbits(8)), 0, 0)
 		if data is None:
@@ -160,7 +160,10 @@ class TBUSCtl:
 
 
 if __name__ == '__main__':
+	import sys
 	from config import tbus_conf as conf
+	if '-v' in sys.argv:
+		log.level = log.l_trc
 	dev = TBMCDev()
 	ctl = TBUSCtl(dev, conf)
 	ctl.bus_init()

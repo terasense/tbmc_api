@@ -16,29 +16,43 @@ l_dbg    = 2
 l_trc    = 3
 
 # Current verbosity level
-verbose = l_inf
+level = l_inf
 
+# Output file
+file = sys.stderr
+
+#
 # Output functions
+#
+def msg(l, s, a = None):
+	if level >= l:
+		if a:
+			print >> file, s % a
+		else:	
+			print >> file, s
 
-def err(s):
-	print >> sys.stderr, s
+def msg_(l, s, a = None):
+	if level >= l:
+		if a:
+			print >> file, s % a,
+		else:	
+			print >> file, s,
 
-def warn(s):
-	if verbose >= l_warn:
-		print >> sys.stderr, s
+def err (s, *a): msg (l_err, s, a)
+def err_(s, *a): msg_(l_err, s, a)
 
-def msg(l, s):
-	if verbose >= l:
-		print >> sys.stderr, s
+def warn (s, *a): msg (l_warn, s, a)
+def warn_(s, *a): msg_(l_warn, s, a)
 
-def msg_(l, s):
-	if verbose >= l:
-		print >> sys.stderr, s,
+def inf (s, *a): msg (l_inf, s, a)
+def inf_(s, *a): msg_(l_inf, s, a)
 
-def inf(s): msg(l_inf, s)
-def inf_(s): msg_(l_inf, s)
-def notice(s): msg(l_notice, s)
-def notice_(s): msg_(l_notice, s)
-def dbg(s): msg(l_dbg, s)
-def trc(s): msg(l_trc, s)
+def notice (s, *a): msg (l_notice, s, a)
+def notice_(s, *a): msg_(l_notice, s, a)
+
+def dbg (s, *a): msg (l_dbg, s, a)
+def dbg_(s, *a): msg_(l_dbg, s, a)
+
+def trc (s, *a): msg (l_trc, s, a)
+def trc_(s, *a): msg_(l_trc, s, a)
 
