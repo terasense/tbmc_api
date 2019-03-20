@@ -16,7 +16,6 @@ class TBUSCtl:
 	# Hard-coded parameters
 	rst_time      = 100
 	clk_hold_time = 100
-	bus_timeout   = 1.
 
 	def __init__(self, dev, cfg):
 		"""
@@ -32,13 +31,13 @@ class TBUSCtl:
 		"""Issue hard reset on the bus"""
 		log.dbg('  BUS reset')
 		self.dev.trigger(TRIG.reset)
-		self.dev.wait_ready(TBUSCtl.bus_timeout)
+		self.dev.wait_ready(self.cfg.tbus_timeout)
 
 	def bus_srq(self):
 		"""Issue SRQ on the bus"""
 		log.dbg('  BUS srq')
 		self.dev.trigger(TRIG.srq)
-		self.dev.wait_ready(TBUSCtl.bus_timeout)
+		self.dev.wait_ready(self.cfg.tbus_timeout)
 
 	def bus_init(self):
 		"""Initialize controller"""
@@ -61,7 +60,7 @@ class TBUSCtl:
 		self.dev.trigger(TRIG.start)
 		self.dev.wait_status(
 				STATUS.ready | STATUS.tx_done | STATUS.data_rdy | STATUS.completed, STATUS.active,
-				tout=TBUSCtl.bus_timeout
+				tout=self.cfg.tbus_timeout
 			)
 		r = self.dev.rx_buff_read_all(len(poll_cmd) + 2, self.cfg.nchannels)
 		assert len(r) == self.cfg.nchannels
@@ -181,7 +180,7 @@ class TBUSCtl:
 		self.dev.trigger(TRIG.start)
 		self.dev.wait_status(
 				STATUS.ready | STATUS.tx_done | STATUS.data_rdy | STATUS.completed, STATUS.active,
-				tout=TBUSCtl.bus_timeout
+				tout=self.cfg.tbus_timeout
 			)
 		r = self.dev.rx_buff_read_all(rx_len, self.cfg.nchannels)
 		assert len(r) == self.cfg.nchannels
@@ -234,7 +233,7 @@ class TBUSCtl:
 		self.dev.trigger(TRIG.start)
 
 		while chan_total_ > 0:
-			self.dev.wait_status(STATUS.data_rdy, 0, tout=TBUSCtl.bus_timeout)
+			self.dev.wait_status(STATUS.data_rdy, 0, tout=self.cfg.tbus_timeout)
 			chunk_data = self.dev.rx_buff_read_all(TBMCDev.rx_buff_chunk if stream_mode else chan_total_, self.cfg.nchannels)
 			assert len(chunk_data) == self.cfg.nchannels
 			for i, resp in enumerate(chunk_data):
@@ -244,7 +243,7 @@ class TBUSCtl:
 
 		if stream_mode:
 			self.dev.trigger(TRIG.stop)
-			self.dev.wait_status(STATUS.ready, STATUS.active, tout=TBUSCtl.bus_timeout)
+			self.dev.wait_status(STATUS.ready, STATUS.active, tout=self.cfg.tbus_timeout)
 
 		chan_data = [''.join(chunks) for chunks in r]
 		for i, data in enumerate(chan_data):

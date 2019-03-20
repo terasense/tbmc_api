@@ -8,6 +8,9 @@ nchannels = 8
 # Bus clock frequency divider. Divide the controller master clock (25MHz) to produce bit clock for SPI buses.
 tbus_clk_div = 6
 
+# Operations time-out in seconds
+tbus_timeout = 1.
+
 #
 # The following idle intervals are expressed in units equal to 1/2 bus clock period.
 # They must be greater than 0 and less than 256
