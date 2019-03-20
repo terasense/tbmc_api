@@ -145,7 +145,7 @@ def main():
 	opt_err_continue = False
 
 	try:
-		optlist, args = getopt.getopt(sys.argv[1:], 'iI:n:cmTMEsrwetfFvh')
+		optlist, args = getopt.getopt(sys.argv[1:], 'n:cmTMEsrwetfvh')
 	except getopt.GetoptError:
 		log.err('invalid command line options' + ': ' + repr(sys.argv[1:]))
 		return -1
