@@ -216,9 +216,9 @@ class TBUSCtl:
 		assert (data_len & 1) == 0
 
 		resp_sz = data_len * self.chain
-		chan_total = tb.hdr_sz + resp_sz
-		r, chan_total_ = [None] * self.cfg.nchannels, TBUSCtl.rx_pad_size(chan_total)
-		stream_mode = chan_total_ > TBMCDev.max_rx_length
+		total_sz = tb.hdr_sz + resp_sz
+		total_sz_ = TBUSCtl.rx_pad_size(total_sz)
+		stream_mode = total_sz_ > TBMCDev.max_rx_length
 
 		log.dbg('%s %d bytes', 'streaming' if stream_mode else 'reading', data_len)
 
@@ -227,19 +227,20 @@ class TBUSCtl:
 
 		self.dev.configure_freq(self.cfg.tbus_clk_div, self.cfg.tbus_tx_idle, self.cfg.tbus_turbo_idle)
 		self.dev.configure_tx(len(cmd), tx_fast = True, b16 = True)
-		self.dev.configure_rx(0 if stream_mode else chan_total_, skip = 4 * self.chain)
+		self.dev.configure_rx(0 if stream_mode else total_sz_, skip = 4 * self.chain)
 
 		self.dev.cmd_put(cmd)
 		self.dev.trigger(TRIG.start)
 
-		while chan_total_ > 0:
+		r = [None] * self.cfg.nchannels
+		while total_sz_ > 0:
 			self.dev.wait_status(STATUS.data_rdy, 0, tout=self.cfg.tbus_timeout)
-			chunk_data = self.dev.rx_buff_read_all(TBMCDev.rx_buff_chunk if stream_mode else chan_total_, self.cfg.nchannels)
+			chunk_data = self.dev.rx_buff_read_all(TBMCDev.rx_buff_chunk if stream_mode else total_sz_, self.cfg.nchannels)
 			assert len(chunk_data) == self.cfg.nchannels
 			for i, resp in enumerate(chunk_data):
 				if r[i] is None: r[i] = []
-				r[i].append(resp[:chan_total_])
-			chan_total_ -= len(resp)
+				r[i].append(resp[:total_sz_])
+			total_sz_ -= len(resp)
 
 		if stream_mode:
 			self.dev.trigger(TRIG.stop)
@@ -250,9 +251,19 @@ class TBUSCtl:
 			rcnt = self._check_resp_hdr(cmd, data, i)
 			if rcnt != self.chain:
 				raise RuntimeError('unexpected number of responses in channel %d: expected %d, received %d' % (i, self.chain, rcnt))
-			self._check_resp_idle(data, chan_total, i)
+			self._check_resp_idle(data, total_sz, i)
 
-		return (self.modules, ''.join([data[tb.hdr_sz:chan_total] for data in chan_data]))
+		return (self.modules, ''.join([data[tb.hdr_sz:total_sz] for data in chan_data]))
+
+	def bus_read_auto(self, data_len, idle_cb):
+		"""Read data frame in auto mode"""
+		assert data_len > 0
+		assert (data_len & 1) == 0
+		total_sz = tb.hdr_sz + data_len * self.chain
+		total_sz_ = TBUSCtl.rx_pad_size(total_sz)
+		all_data = self.dev.rx_buff_read_all_on_ready(total_sz_, self.cfg.nchannels, tout=self.cfg.tbus_timeout, idle_cb=idle_cb)
+		assert len(all_data) == self.cfg.nchannels
+		return (self.modules, ''.join([chan_data[tb.hdr_sz:total_sz] for chan_data in all_data]))
 
 	def bus_read_coherent(self, addr, data_len):
 		"""

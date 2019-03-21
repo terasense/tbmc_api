@@ -1,3 +1,5 @@
+#!/usr/bin/python2
+
 # (C) 2018-2019 TeraSense Inc. http://terasense.com/
 # All Rights Reserved
 #
@@ -10,6 +12,7 @@ import numpy as np
 import struct
 import tmod_defs as tmod
 import msp430txt as ldr
+from tbmc_dev import TRIG
 from tmod_hlp import *
 import log
 
@@ -78,6 +81,19 @@ def acquire(ctl, conf):
 	data = acquire_raw(ctl, conf)
 	return array_from_raw(data)
 
+def run_auto(ctl):
+	"""
+	Switch to auto mode. The caller should acquire at least one data frame in normal mode
+	before switching to auto mode.
+	"""
+	ctl.dev.trigger(TRIG.auto)
+
+def acquire_auto(ctl, idle_cb=None):
+	"""Acquire next data frame in auto mode"""
+	data = ctl.bus_read_auto(data_len, idle_cb=idle_cb)
+	return array_from_raw(data)
+
+
 if __name__ == '__main__':
 	import getopt, time
 	from tbmc_dev import TBMCDev
@@ -87,7 +103,7 @@ if __name__ == '__main__':
 
 	def main():
 		try:
-			optlist, args = getopt.getopt(sys.argv[1:], 'vln:')
+			optlist, args = getopt.getopt(sys.argv[1:], 'vln:a')
 		except getopt.GetoptError:
 			log.err('invalid command line options' + ': ' + repr(sys.argv[1:]))
 			return -1
@@ -96,15 +112,18 @@ if __name__ == '__main__':
 			log.err('unexpected args: %s', args)
 			return -1
 
-		n = 1
+		n, auto = 1, False
 		for opt, arg in optlist:
 			if opt == '-v':
+				# verbose
 				log.level += 1
 			elif opt == '-l':
 				# long output
 				np.set_printoptions(threshold='nan')
 			elif opt == '-n':
 				n = int(arg)
+			elif opt == '-a':
+				auto = True
 
 		ctl = TBUSCtl(TBMCDev(), tbus_conf)
 		ctl.bus_init()
@@ -112,7 +131,12 @@ if __name__ == '__main__':
 		configure(ctl, applet_conf)
 		started = time.time()
 		for i in range(n):
-			data = acquire(ctl, applet_conf)
+			if auto and i == 1:
+				run_auto(ctl)
+			if auto and i >= 1:
+				data = acquire_auto(ctl)
+			else:
+				data = acquire(ctl, applet_conf)
 			print '#%d' % (i + 1), time.time() - started
 			print data
 
