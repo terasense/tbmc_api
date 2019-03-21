@@ -46,16 +46,11 @@ class TBUSCtl:
 		if self.dev.channels < self.cfg.nchannels:
 			raise RuntimeError('controller supports %d channels, %d channels required' % (self.dev.channels, self.cfg.nchannels))
 
-		log.dbg('initializing')
-		div = int(TBMCDev.master_clk / self.cfg.tbus_freq)
-		if float(TBMCDev.master_clk) / div != self.cfg.tbus_freq:
-			raise RuntimeError("can't set bus frequency " + str(self.cfg.tbus_freq))
-
-		self.cfg.f_div = div
+		log.dbg('set bus clock frequency to %d Hz', TBMCDev.master_clk // self.cfg.tbus_clk_div)
 
 		poll_cmd = self._mk_cmd(tb.cmd_poll, addr=tm.status_addr, data='\x00\xff')
 		self.dev.configure_chans(self.cfg.nchannels)
-		self.dev.configure_freq(div, self.cfg.tbus_tx_idle, self.cfg.tbus_turbo_idle)
+		self.dev.configure_freq(self.cfg.tbus_clk_div, self.cfg.tbus_tx_idle, self.cfg.tbus_turbo_idle)
 		self.dev.configure_rst(TBUSCtl.rst_time, TBUSCtl.clk_hold_time)
 		self.dev.configure_tx(len(poll_cmd))
 		self.dev.configure_rx(len(poll_cmd) + 2, wait = True)
@@ -178,7 +173,7 @@ class TBUSCtl:
 		rx_len = TBUSCtl.round_size(len(cmd))
 		tx_idle = (self.cfg.tbus_tx_idle, self.cfg.tbus_wt_idle)[wait]
 
-		self.dev.configure_freq(self.cfg.f_div, tx_idle, self.cfg.tbus_turbo_idle)
+		self.dev.configure_freq(self.cfg.tbus_clk_div, tx_idle, self.cfg.tbus_turbo_idle)
 		self.dev.configure_tx(len(cmd), tx_fast = False, b16 = True)
 		self.dev.configure_rx(rx_len, skip = 4 * self.chain, wait = wait)
 
@@ -231,7 +226,7 @@ class TBUSCtl:
 		cmd = self._mk_cmd(tb.cmd_read, addr, None, data_len)
 		assert len(cmd) == tb.hdr_sz
 
-		self.dev.configure_freq(self.cfg.f_div, self.cfg.tbus_tx_idle, self.cfg.tbus_turbo_idle)
+		self.dev.configure_freq(self.cfg.tbus_clk_div, self.cfg.tbus_tx_idle, self.cfg.tbus_turbo_idle)
 		self.dev.configure_tx(len(cmd), tx_fast = True, b16 = True)
 		self.dev.configure_rx(0 if stream_mode else chan_total_, skip = 4 * self.chain)
 

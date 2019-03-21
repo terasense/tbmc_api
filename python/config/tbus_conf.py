@@ -5,8 +5,8 @@
 # The number of active channels
 nchannels = 8
 
-# Bus bit frequency in Hz. It must divide the controller master clock = 25MHz.
-tbus_freq = 2500000
+# Bus clock frequency divider. Divide the controller master clock (25MHz) to produce bit clock for SPI buses.
+tbus_clk_div = 6
 
 #
 # The following idle intervals are expressed in units equal to 1/2 bus clock period.
