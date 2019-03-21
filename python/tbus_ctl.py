@@ -163,14 +163,14 @@ class TBUSCtl:
 					))
 
 	@staticmethod
-	def round_size(sz):
+	def rx_pad_size(sz):
 		return sz + (sz & 1) + 2  # make it even and pad with zero bytes
 
 	def _send_cmd(self, cmd_code, addr, data, check_data):
 		"""Send command and returns the array of responses"""
 		wait = (cmd_code==tb.cmd_wait)
 		cmd = self._mk_cmd(cmd_code, addr, data)
-		rx_len = TBUSCtl.round_size(len(cmd))
+		rx_len = TBUSCtl.rx_pad_size(len(cmd))
 		tx_idle = (self.cfg.tbus_tx_idle, self.cfg.tbus_wt_idle)[wait]
 
 		self.dev.configure_freq(self.cfg.tbus_clk_div, tx_idle, self.cfg.tbus_turbo_idle)
@@ -218,7 +218,7 @@ class TBUSCtl:
 
 		resp_sz = data_len * self.chain
 		chan_total = tb.hdr_sz + resp_sz
-		r, chan_total_ = [None] * self.cfg.nchannels, TBUSCtl.round_size(chan_total)
+		r, chan_total_ = [None] * self.cfg.nchannels, TBUSCtl.rx_pad_size(chan_total)
 		stream_mode = chan_total_ > TBMCDev.max_rx_length
 
 		log.dbg('%s %d bytes', 'streaming' if stream_mode else 'reading', data_len)
@@ -273,8 +273,9 @@ class TBUSCtl:
 
 	def bus_read(self, addr, data_len):
 		"""Read data from the specified address. Returns the array of the data responses."""
-		r = self.bus_read_raw(addr, data_len)
-		return [r[1][i*data_len:(i+1)*data_len] for i in range(r[0])]
+		data_len_ = data_len + (data_len & 1)
+		r = self.bus_read_raw(addr, data_len_)
+		return [r[1][i*data_len_:i*data_len_+data_len] for i in range(r[0])]
 
 	def bus_read_struct(self, addr, fmt):
 		"""
