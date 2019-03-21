@@ -212,6 +212,8 @@ def main():
 				raise
 			if log.level > 0:
 				traceback.print_exc()
+		if (log.level < log.l_dbg) and (i % 100 == 99):
+			print >> sys.stderr, '.',
 
 	log.inf('\nok')
 	return 0
