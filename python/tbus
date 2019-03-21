@@ -1,0 +1,213 @@
+#!/usr/bin/python2
+
+# (C) 2018-2019 TeraSense Inc. http://terasense.com/
+# All Rights Reserved
+#
+# Description: T-BUS command line control tool
+#
+# Author: Oleg Volkov olegv142@gmail.com
+
+import sys
+import traceback
+import getopt
+import random
+
+import log
+from tbus_ctl import TBUSCtl
+from tbmc_dev import TBMCDev
+from tmod_hlp import *
+from config import tbus_conf as conf
+
+import tbus_defs as tb
+import tmod_defs as tm
+
+opt_n = 1
+opt_tbus_cmd = None
+
+def inf(*args):
+	if opt_n <= 1:
+		log.inf(*args)
+
+def query_modules_info(ctl):
+	r = read_status(ctl)
+	inf('\n%d module(s):', r[0])
+	inf('version             = 0x%x', r[1][0])
+	inf('hardware id         = 0x%x', r[1][1])
+	inf('hard reset          = %s', (r[1][2] & tm.hard_reset) != 0)
+	inf('clock uncalibrated  = %s', (r[1][2] & tm.clock_uncalibrated) != 0)
+	inf('srq pending         = %s', (r[1][2] & tm.srq_pending) != 0)
+	inf('chksum valid        = %s', (r[1][2] & tm.chksum_valid) != 0)
+	inf('bus error           = %s', (r[1][2] & tm.tbus_err) != 0)
+	inf('system error        = %s', (r[1][2] & tm.sys_err) != 0)
+	inf('srq status          = %#x', r[1][3])
+	inf('code buffer check sum %08x', r[1][4])
+	return 0
+
+def query_temp(ctl):
+	log.dbg('reading modules temperature')
+	t_raw = ctl.bus_read_struct(tm.temp_addr, 'H')
+	t_K   = [tm.get_abs_temp(v[0]) for v in t_raw if v != 0]
+	if not len(t_K):
+		log.err('modules temperature is not available yet')
+		return -1
+	inf('%d module(s) T = %d .. %dC (%u .. %u)', len(t_K), min(t_K)-273, max(t_K)-273, min(t_raw)[0], max(t_raw)[0])
+	return 0
+
+def memory_test(ctl):
+	# Generate random data
+	length = 1 + random.getrandbits(tm.srq_buff_chunk_bits)
+	data = ''
+	# Put random content to SRQ buffer
+	for i in range(length):
+		data += chr(random.getrandbits(8))
+	log.dbg('writing %d bytes to SRQ buffer', length)
+	ctl.bus_write(tm.srq_buff_addr, data)
+	log.dbg('resetting modules')
+	ctl.bus_reset()
+	log.dbg('polling SRQ buffer content')
+	r = ctl.bus_read_coherent(tm.srq_buff_addr, length)
+	# Check content
+	if r[1] != data:
+		log.err('modules memory content mismatch')
+		return -1
+	return 0
+
+def tbus_test(ctl):
+	# Generate random data
+	addr   = random.getrandbits(16)
+	length = 1 + random.getrandbits(tb.data_length_bits)
+	data = ''
+	for i in range(length):
+		data += chr(random.getrandbits(8))
+	log.dbg('passing %d bytes over the bus', length)
+	r = ctl.bus_cmd(tb.cmd_test, addr, data)
+	return 0
+
+def flash_test(ctl):
+	# Generate random data
+	length = 1 + random.getrandbits(tm.seg_bits)
+	data = ''
+	for i in range(length):
+		data += chr(random.getrandbits(8))
+	log.dbg('writing %d bytes to the flash', length)
+	# Write single segment at address valid on all hardware
+	program(ctl, 0xf800, data)
+
+def erase_flash(ctl):
+	log.dbg('erasing flash')
+	srq_sync(ctl, tm.srq_flash_ers)
+	return 0
+
+def send_tbus_cmd(ctl):
+	assert opt_tbus_cmd is not None
+	log.dbg('sending %s command', tb.cmd_names[opt_tbus_cmd])
+	r = ctl.bus_cmd(opt_tbus_cmd)
+	return 0
+
+def bus_srq(ctl):
+	log.dbg('issuing SRQ on the bus')
+	ctl.bus_srq()
+
+def bus_rst(ctl):
+	log.dbg('issuing RESET on the bus')
+	ctl.bus_reset()
+
+info =\
+"""\
+T-BUS debug tool. Print controller info by default. Options available:
+  -m          query modules info
+  -T          query temperature
+  -M          modules memory test
+  -E          erase code buffer
+  -s          issue SRQ on the bus
+  -r          issue RESET on the bus
+  -w          issue WAIT command on the bus
+  -e          issue ENUM command on the bus
+  -t          issue TEST command with random data
+  -f          flash writing test
+  -n N        repeat N times
+  -c          continue after error (for N > 1)
+  -v          verbose output
+  -h          this help
+See config/tbus_conf.py for more configuration options.
+"""
+
+def main():
+	global opt_n, opt_tbus_cmd
+	opt_handler = None
+	opt_err_continue = False
+
+	try:
+		optlist, args = getopt.getopt(sys.argv[1:], 'iI:n:cmTMEsrwetfFvh')
+	except getopt.GetoptError:
+		log.err('invalid command line options' + ': ' + repr(sys.argv[1:]))
+		return -1
+
+	if args:
+		log.err('unexpected args: %s', args)
+		return -1
+
+	for opt, arg in optlist:
+		if opt == '-n':
+			opt_n = int(arg)
+		elif opt == '-c':
+			opt_err_continue = True
+		elif opt == '-m':
+			opt_handler = query_modules_info
+		elif opt == '-T':
+			opt_handler = query_temp
+		elif opt == '-M':
+			opt_handler = memory_test
+		elif opt == '-E':
+			opt_handler = erase_flash
+		elif opt == '-s':
+			opt_handler = bus_srq
+		elif opt == '-r':
+			opt_handler = bus_rst
+		elif opt == '-w':
+			opt_handler = send_tbus_cmd
+			opt_tbus_cmd = tb.cmd_wait
+		elif opt == '-e':
+			opt_handler = send_tbus_cmd
+			opt_tbus_cmd = tb.cmd_enum
+		elif opt == '-t':
+			opt_handler = tbus_test
+		elif opt == '-f':
+			opt_handler = flash_test
+		elif opt == '-v':
+			log.level += 1
+		elif opt == '-h':
+			print info
+			return 0
+
+	ctl = TBUSCtl(TBMCDev(), conf)
+	ctl.bus_init()
+
+	if not opt_handler:
+		print ctl
+		return 0
+
+	if opt_n != 1:
+		if opt_err_continue:
+			log.inf('looping %d times, errors ignored ...', opt_n)
+		else:
+			log.inf('looping %d times ...', opt_n)
+
+	for i in xrange(opt_n):
+		try:
+			res = opt_handler(ctl)
+			if res:
+				return res
+		except KeyboardInterrupt:
+			raise
+		except:
+			if not opt_err_continue:
+				raise
+			if log.level > 0:
+				traceback.print_exc()
+
+	log.inf('\nok')
+	return 0
+
+if __name__ == '__main__':
+	main()
