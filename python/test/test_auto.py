@@ -113,7 +113,7 @@ def main():
 
 	dev.configure_chans(channels)
 	# Use the fastest rate - 25MHz
-	dev.configure_freq(0, 3, 3)
+	dev.configure_freq(1, 3, 3)
 	dev.configure_rst(100, 100)
 	dev.configure_rx(1, loopback=True)
 
