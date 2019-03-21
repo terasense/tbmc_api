@@ -22,11 +22,9 @@ tbus_turbo_idle = 32
 # The byte transmission idle interval during wait
 tbus_wt_idle = 255
 
-# Use turbo mode
-tbus_turbo = True
-
-# Use 16 bit mode
-tbus_16bit_mode = True
+#
+# Optimization settings
+#
 
 # Skip command cookies to improve performance
 skip_cmd_cookies = True
