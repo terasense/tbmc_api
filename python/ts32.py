@@ -101,9 +101,22 @@ if __name__ == '__main__':
 	import config.tbus_conf as tbus_conf
 	import config.ts32_conf as applet_conf
 
+	info =\
+"""\
+TS32 measuring applet debug tool. Run single frame acquisition by default. Options available:
+  -n N        repeat N times
+  -a          auto mode
+  -l          long data output
+  -v          verbose output
+  -h          this help
+See config/tbus_conf.py and config/ts32_conf.py for more configuration options.
+(C) 2018-2019 TeraSense Inc. http://terasense.com/
+All Rights Reserved
+"""
+
 	def main():
 		try:
-			optlist, args = getopt.getopt(sys.argv[1:], 'vln:a')
+			optlist, args = getopt.getopt(sys.argv[1:], 'vln:ah')
 		except getopt.GetoptError:
 			log.err('invalid command line options' + ': ' + repr(sys.argv[1:]))
 			return -1
@@ -124,6 +137,9 @@ if __name__ == '__main__':
 				n = int(arg)
 			elif opt == '-a':
 				auto = True
+			elif opt == '-h':
+				print info
+				return 0
 
 		ctl = TBUSCtl(TBMCDev(), tbus_conf)
 		ctl.bus_init()
