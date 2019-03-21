@@ -137,6 +137,8 @@ T-BUS debug tool. Print controller info by default. Options available:
   -v          verbose output
   -h          this help
 See config/tbus_conf.py for more configuration options.
+(C) 2018-2019 TeraSense Inc. http://terasense.com/
+All Rights Reserved
 """
 
 def main():
@@ -196,9 +198,9 @@ def main():
 
 	if opt_n != 1:
 		if opt_err_continue:
-			log.inf('looping %d times, errors ignored ...', opt_n)
+			log.inf('looping %d times, errors ignored', opt_n)
 		else:
-			log.inf('looping %d times ...', opt_n)
+			log.inf('looping %d times', opt_n)
 
 	for i in xrange(opt_n):
 		try:
