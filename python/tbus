@@ -30,7 +30,7 @@ def inf(*args):
 
 def query_modules_info(ctl):
 	r = read_status(ctl)
-	inf('\n%d module(s):', r[0])
+	inf('%d module(s):', r[0])
 	inf('version             = 0x%x', r[1][0])
 	inf('hardware id         = 0x%x', r[1][1])
 	inf('hard reset          = %s', (r[1][2] & tm.hard_reset) != 0)
@@ -217,7 +217,6 @@ def main():
 		if (log.level < log.l_dbg) and (i % 100 == 99):
 			print >> sys.stderr, '.',
 
-	log.inf('\nok')
 	return 0
 
 if __name__ == '__main__':
