@@ -70,6 +70,13 @@ def memory_test(ctl):
 	if r[1] != data:
 		log.err('modules memory content mismatch')
 		return -1
+	log.dbg('reading SRQ buffer content')
+	r = ctl.bus_read(tm.srq_buff_addr, length)
+	# Check content
+	for d in r:
+		if d != data:
+			log.err('modules memory content mismatch')
+			return -1
 	return 0
 
 def tbus_test(ctl):
