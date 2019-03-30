@@ -7,7 +7,7 @@
 #
 # Author: Oleg Volkov olegv142@gmail.com
 
-import sys, os, base64, json
+import sys, os, base64, json, socket
 from SocketServer import TCPServer, ThreadingMixIn
 from SimpleHTTPServer import SimpleHTTPRequestHandler
 from urlparse import urlparse
@@ -20,6 +20,7 @@ import tbus.config.tbus_conf as tbus_conf
 import tbus.config.ts32_conf as applet_conf
 
 PORT = 80
+TIMEOUT = 1.
 
 class HttpHandler(SimpleHTTPRequestHandler):
 	protocol_version = 'HTTP/2.0'
@@ -62,6 +63,7 @@ def start():
 	web_dir = os.path.join(cur_dir, 'www')
 	os.chdir(web_dir)
 
+	socket.setdefaulttimeout(TIMEOUT)
 	httpd = TCPServer(("", PORT), HttpHandler)
 	print "serving at port", PORT
 	httpd.serve_forever()
