@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>Terasense data stream test</title>
+    </head>
+    <body>
+    <script>
+    function TSCreate() {
+        ctl = {
+            'on_setup': function (e) {
+                ctl.setup = JSON.parse(e.data)
+                console.log("setup:", ctl.setup);
+            },
+            'on_frame': function (e) {
+                var raw = window.atob(e.data);
+                var byte_cnt = raw.length;
+                var raw_buff = new ArrayBuffer(byte_cnt);
+                var buff = new Int8Array(raw_buff);
+                for (var i = 0; i < byte_cnt; i++) {
+                    buff[i] = raw.charCodeAt(i);
+                }
+                var data = new Int16Array(raw_buff);
+                ctl.frames_cnt++;
+                console.log("frame:", data);
+                console.log(1000 * ctl.frames_cnt / (new Date().getTime() - ctl.start_time), "FPS");
+            },
+            'start': function () {
+                window.addEventListener("load", function(event) {
+                    console.log('listening to events');
+                    var eventStream = new EventSource("/stream");
+                    eventStream.addEventListener("setup", ctl.on_setup);
+                    eventStream.addEventListener("frame", ctl.on_frame);
+                    window.addEventListener("beforeunload", function(event) {
+                        eventStream.close();
+                    })
+                });
+                ctl.start_time = new Date().getTime();
+                ctl.frames_cnt = 0;
+            }
+        };
+        return ctl;
+    }
+    window.ts_ctl = TSCreate();
+    window.ts_ctl.start();
+    </script>
+    </body>
+</html>
+
