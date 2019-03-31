@@ -11,7 +11,7 @@
             <a href="javascript:void(0)" class="closebtn" onclick="closeNav()">&times;</a>
             <div>
                 <p>Gain</p>
-                <input type="range" min="0" max="1000" value="900" oninput="setValueRange(1023-this.value)">
+                <input id="gain" type="range" min="0" max="4" step=".01" value="3" oninput="setValueRangeExp(this.value)">
             </div>
         </div>
         <span class="hamburger-icon" onclick="openNav()">
@@ -37,7 +37,7 @@
                 'hue_offset' : 240,
                 'saturation' : 1.,
                 'brightness' : 1.,
-                'data_max'   : 100,
+                'data_max'   : 1023,
                 'canvas'     : document.getElementById('canvas')
             };
             ctl.on_setup = function (e) {
@@ -103,9 +103,10 @@
                     ctl.frames_cnt = 0;
                 });
             };
-            window.setValueRange = function (range) {
-                ctl.data_max = range;
+            window.setValueRangeExp = function (v) {
+                ctl.data_max = 1023 / Math.exp(v);
             }
+            window.setValueRangeExp(document.getElementById('gain').value);
             ctl.init();
             return ctl;
         }
