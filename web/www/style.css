@@ -1,6 +1,69 @@
+body {
+  background-color: #101010;
+  font-family: "Lato", sans-serif;
+}
+
+.hamburger-icon {
+  margin: 0;
+  padding: 16px 16px;
+  display: inline-block;
+  vertical-align: top;
+  top: 0;
+  left: 0;
+}
+.hamburger-icon span {
+  width: 32px;
+  background-color: #a0a0a0;
+  height: 5px;
+  display: block;
+  margin-bottom: 6px;
+}
 
 #canvas {
-    border: 1px solid;
-    width:  75%;
+    width: 75%;
+}
+
+.sidenav {
+  height: 100%;
+  width: 0;
+  position: fixed;
+  z-index: 1;
+  top: 0;
+  left: 0;
+  background-color: #404040;
+  overflow-x: hidden;
+  transition: 0.5s;
+  padding-top: 16px;
+}
+
+.sidenav.expanded {
+  width: 240px;
+}
+
+.sidenav a {
+  text-decoration: none;
+  color: #818181;
+}
+
+.sidenav a:hover {
+  color: #f1f1f1;
+}
+
+.sidenav .closebtn {
+  position: absolute;
+  top: 0;
+  right: 25px;
+  font-size: 36px;
+  margin-left: 50px;
+}
+
+.sidenav div {
+  font-size: 30px;
+  color: #c0c0c0;
+  margin-left: 10px;
+}
+
+input[type=range] {
+  width: 90%;
 }
 

@@ -7,89 +7,110 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
     </head>
     <body>
-        <div id="plot">
+        <div id="side-panel" class="sidenav">
+            <a href="javascript:void(0)" class="closebtn" onclick="closeNav()">&times;</a>
+            <div>
+                <p>Gain</p>
+                <input type="range" min="0" max="1000" value="900" oninput="setValueRange(1023-this.value)">
+            </div>
+        </div>
+        <span class="hamburger-icon" onclick="openNav()">
+            <span>&nbsp;</span>
+            <span>&nbsp;</span>
+            <span>&nbsp;</span>
+        </span>
+        <span id="plot">
             <canvas id="canvas"></canvas>
-        </div>
-        <div id="shadow-plot" style="visibility:hidden;">
-            <canvas id="shadow-canvas"></canvas>        
-        </div>
-    <script>
-    function TSCreate() {
-        ctl = {
-            'hue_offset' : 240,
-            'saturation' : 1.,
-            'brightness' : 1.,
-            'data_max'   : 100,
-            'canvas'     : document.getElementById('canvas')
-        };
-        ctl.on_setup = function (e) {
-            ctl.setup = JSON.parse(e.data);
-            rect = ctl.canvas.getBoundingClientRect();
-            var k = Math.min(
-                    rect.width / ctl.setup.width,
-                    (document.documentElement.clientHeight - 2 * rect.top) / ctl.setup.height
-                );
-            ctl.canvas.style.width  = (k * ctl.setup.width ).toString() + "px";
-            ctl.canvas.style.height = (k * ctl.setup.height).toString() + "px";
-            ctl.canvas.width  = ctl.setup.width;
-            ctl.canvas.height = ctl.setup.height;
-            ctl.context = ctl.canvas.getContext('2d');
-            ctl.context.fillStyle = "black";
-            ctl.context.fillRect(0, 0, ctl.setup.width, ctl.setup.height);
-        };
-        ctl.on_frame = function (e) {
-            var raw = window.atob(e.data);
-            var byte_cnt = raw.length;
-            var raw_buff = new ArrayBuffer(byte_cnt);
-            var buff = new Int8Array(raw_buff);
-            for (var i = 0; i < byte_cnt; i++) {
-                buff[i] = raw.charCodeAt(i);
+        </span>
+        <script>
+            function openNav() {
+              document.getElementById("side-panel").classList.add("expanded");
             }
-            var data = new Int16Array(raw_buff);
-            ctl.plot_data(data);
-            ctl.frames_cnt++;
-            //console.log("frame:", data);
-            //console.log(1000 * ctl.frames_cnt / (new Date().getTime() - ctl.start_time), "FPS");
-        };
-        ctl.plot_data = function (data) {
-            var imageData = ctl.context.getImageData(0, 0, ctl.setup.width, ctl.setup.height);
-            var imageBuff = imageData.data;
-            var cnt = data.length;
-            function hsv2rgb(h, s, v, im, off)
-            {
-                function f(n) {
-                    var k = (n + h/60) % 6;
-                    return v - v * s * Math.max(Math.min(k, 4-k, 1), 0);
+            function closeNav() {
+              document.getElementById("side-panel").classList.remove("expanded");
+            }
+        </script>
+        <script>
+        function TSCreate() {
+            // Controller constructor
+            ctl = {
+                'hue_offset' : 240,
+                'saturation' : 1.,
+                'brightness' : 1.,
+                'data_max'   : 100,
+                'canvas'     : document.getElementById('canvas')
+            };
+            ctl.on_setup = function (e) {
+                ctl.setup = JSON.parse(e.data);
+                rect = ctl.canvas.getBoundingClientRect();
+                var k = Math.min(
+                        rect.width / ctl.setup.width,
+                        (document.documentElement.clientHeight - 2 * rect.top) / ctl.setup.height
+                    );
+                ctl.canvas.style.width  = (k * ctl.setup.width ).toString() + "px";
+                ctl.canvas.style.height = (k * ctl.setup.height).toString() + "px";
+                ctl.canvas.width  = ctl.setup.width;
+                ctl.canvas.height = ctl.setup.height;
+                ctl.context = ctl.canvas.getContext('2d');
+                ctl.context.fillStyle = "black";
+                ctl.context.fillRect(0, 0, ctl.setup.width, ctl.setup.height);
+            };
+            ctl.on_frame = function (e) {
+                var raw = window.atob(e.data);
+                var byte_cnt = raw.length;
+                var raw_buff = new ArrayBuffer(byte_cnt);
+                var buff = new Int8Array(raw_buff);
+                for (var i = 0; i < byte_cnt; i++) {
+                    buff[i] = raw.charCodeAt(i);
                 }
-                im[off]   = Math.round(f(5)*255);
-                im[off+1] = Math.round(f(3)*255);
-                im[off+2] = Math.round(f(1)*255);
+                var data = new Int16Array(raw_buff);
+                ctl.plot_data(data);
+                ctl.frames_cnt++;
+                //console.log("frame:", data);
+                //console.log(1000 * ctl.frames_cnt / (new Date().getTime() - ctl.start_time), "FPS");
+            };
+            ctl.plot_data = function (data) {
+                var imageData = ctl.context.getImageData(0, 0, ctl.setup.width, ctl.setup.height);
+                var imageBuff = imageData.data;
+                var cnt = data.length;
+                function hsv2rgb(h, s, v, im, off)
+                {
+                    function f(n) {
+                        var k = (n + h/60) % 6;
+                        return v - v * s * Math.max(Math.min(k, 4-k, 1), 0);
+                    }
+                    im[off]   = Math.round(f(5)*255);
+                    im[off+1] = Math.round(f(3)*255);
+                    im[off+2] = Math.round(f(1)*255);
+                }
+                for (var i = 0, off = 0; i < cnt; i++, off += 4) {
+                    var h = ctl.hue_offset * (1 - data[i] / ctl.data_max);
+                    h = Math.max(Math.min(h, 359), 0);
+                    hsv2rgb(h, ctl.saturation, ctl.brightness, imageBuff, off);
+                }
+                ctl.context.putImageData(imageData, 0, 0);
+            };
+            ctl.init = function () {
+                window.addEventListener("load", function(event) {
+                    console.log('start listening to events');
+                    var eventStream = new EventSource("/stream");
+                    eventStream.addEventListener("setup", ctl.on_setup);
+                    eventStream.addEventListener("frame", ctl.on_frame);
+                    window.addEventListener("beforeunload", function(event) {
+                        eventStream.close();
+                    })
+                    ctl.start_time = new Date().getTime();
+                    ctl.frames_cnt = 0;
+                });
+            };
+            window.setValueRange = function (range) {
+                ctl.data_max = range;
             }
-            for (var i = 0, off = 0; i < cnt; i++, off += 4) {
-                var h = ctl.hue_offset * (1 - data[i] / ctl.data_max);
-                h = Math.max(Math.min(h, 359), 0);
-                hsv2rgb(h, ctl.saturation, ctl.brightness, imageBuff, off);
-            }
-            ctl.context.putImageData(imageData, 0, 0);
-        };
-        ctl.start = function () {
-            window.addEventListener("load", function(event) {
-                console.log('listening to events');
-                var eventStream = new EventSource("/stream");
-                eventStream.addEventListener("setup", ctl.on_setup);
-                eventStream.addEventListener("frame", ctl.on_frame);
-                window.addEventListener("beforeunload", function(event) {
-                    eventStream.close();
-                })
-            });
-            ctl.start_time = new Date().getTime();
-            ctl.frames_cnt = 0;
-        };
-        return ctl;
-    }
-    window.ts_ctl = TSCreate();
-    window.ts_ctl.start();
-    </script>
+            ctl.init();
+            return ctl;
+        }
+        window.ts_ctl = TSCreate();
+        </script>
     </body>
 </html>
 
