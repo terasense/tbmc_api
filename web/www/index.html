@@ -2,7 +2,7 @@
 <html>
     <head>
         <meta charset="utf-8">
-        <title>Terasense data stream test</title>
+        <title>Terasense camera viewer</title>
         <link rel="stylesheet" type="text/css" href="style.css">
         <meta name="viewport" content="width=device-width, initial-scale=1">
     </head>
@@ -16,15 +16,19 @@
     <script>
     function TSCreate() {
         ctl = {
-            'hue_offset': 240,
-            'saturation': 1.,
-            'brightness': 1.,
-            'data_max'  : 100,
-            'canvas'    : document.getElementById('canvas')
+            'hue_offset' : 240,
+            'saturation' : 1.,
+            'brightness' : 1.,
+            'data_max'   : 100,
+            'canvas'     : document.getElementById('canvas')
         };
         ctl.on_setup = function (e) {
             ctl.setup = JSON.parse(e.data);
-            var k = Math.min(ctl.canvas.clientWidth / ctl.setup.width, ctl.canvas.clientHeight / ctl.setup.height);
+            rect = ctl.canvas.getBoundingClientRect();
+            var k = Math.min(
+                    rect.width / ctl.setup.width,
+                    (document.documentElement.clientHeight - 2 * rect.top) / ctl.setup.height
+                );
             ctl.canvas.style.width  = (k * ctl.setup.width ).toString() + "px";
             ctl.canvas.style.height = (k * ctl.setup.height).toString() + "px";
             ctl.canvas.width  = ctl.setup.width;
