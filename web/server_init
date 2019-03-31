@@ -1,0 +1,21 @@
+#!/bin/sh
+
+DAEMON=/usr/libexec/tbmc_api/web/server
+
+start ()
+{
+    echo " Starting Terasense server"
+    start-stop-daemon -S -o --background -x $DAEMON
+}
+
+[ -e $DAEMON ] || exit 1
+
+case "$1" in
+    start)
+        start;
+        ;;
+    *)
+        exit 1
+esac
+
+exit $?
