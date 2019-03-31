@@ -11,7 +11,7 @@
             <a href="javascript:void(0)" class="closebtn" onclick="closeNav()">&times;</a>
             <div>
                 <p>Gain</p>
-                <input id="gain" type="range" min="0" max="4" step=".01" value="3" oninput="setValueRangeExp(this.value)">
+                <input id="gain" type="range" min="0" max="4" step=".01" value="3">
             </div>
         </div>
         <span class="hamburger-icon" onclick="openNav()">
@@ -31,20 +31,20 @@
             }
         </script>
         <script>
-        function TSCreate() {
-            // Controller constructor
+        (function (window) {
+            // Controller initializer
             ctl = {
                 'hue_offset' : 240,
                 'saturation' : 1.,
                 'brightness' : 1.,
                 'data_max'   : 1023,
-                'canvas'     : document.getElementById('canvas')
+                'canvas'     : window.document.getElementById('canvas')
             };
-            ctl.on_setup = function (e) {
+            function on_setup(e) {
                 ctl.setup = JSON.parse(e.data);
                 var rect = ctl.canvas.getBoundingClientRect();
-                var avail_width  = document.documentElement.clientWidth  - 2 * rect.left;
-                var avail_height = document.documentElement.clientHeight - 2 * rect.left;
+                var avail_width  = window.document.documentElement.clientWidth  - 2 * rect.left;
+                var avail_height = window.document.documentElement.clientHeight - 2 * rect.left;
                 var k = Math.min(avail_width / ctl.setup.width, avail_height / ctl.setup.height);
                 ctl.canvas.style.width  = Math.floor(k * ctl.setup.width ).toString() + "px";
                 ctl.canvas.style.height = Math.floor(k * ctl.setup.height).toString() + "px";
@@ -54,7 +54,7 @@
                 ctl.context.fillStyle = "black";
                 ctl.context.fillRect(0, 0, ctl.setup.width, ctl.setup.height);
             };
-            ctl.on_frame = function (e) {
+            function on_frame(e) {
                 var raw = window.atob(e.data);
                 var byte_cnt = raw.length;
                 var raw_buff = new ArrayBuffer(byte_cnt);
@@ -63,12 +63,12 @@
                     buff[i] = raw.charCodeAt(i);
                 }
                 var data = new Int16Array(raw_buff);
-                ctl.plot_data(data);
+                plot_data(data);
                 ctl.frames_cnt++;
                 //console.log("frame:", data);
                 //console.log(1000 * ctl.frames_cnt / (new Date().getTime() - ctl.start_time), "FPS");
             };
-            ctl.plot_data = function (data) {
+            function plot_data(data) {
                 var imageData = ctl.context.getImageData(0, 0, ctl.setup.width, ctl.setup.height);
                 var imageBuff = imageData.data;
                 var cnt = data.length;
@@ -89,27 +89,28 @@
                 }
                 ctl.context.putImageData(imageData, 0, 0);
             };
-            ctl.init = function () {
+            function init() {
                 window.addEventListener("load", function(event) {
                     console.log('start listening to events');
                     var eventStream = new EventSource("/stream");
-                    eventStream.addEventListener("setup", ctl.on_setup);
-                    eventStream.addEventListener("frame", ctl.on_frame);
+                    eventStream.addEventListener("setup", on_setup);
+                    eventStream.addEventListener("frame", on_frame);
                     window.addEventListener("beforeunload", function(event) {
                         eventStream.close();
                     })
                     ctl.start_time = new Date().getTime();
                     ctl.frames_cnt = 0;
                 });
+                var gain_inp = window.document.getElementById('gain');
+                gain_inp.addEventListener("input", function () {set_rangex(this.value);});
+                set_rangex(gain_inp.value);
             };
-            window.setValueRangeExp = function (v) {
+            function set_rangex(v) {
                 ctl.data_max = 1023 / Math.exp(v);
             }
-            window.setValueRangeExp(document.getElementById('gain').value);
-            ctl.init();
-            return ctl;
-        }
-        window.ts_ctl = TSCreate();
+            init();
+            window.ts_ctl = ctl;
+        })(window);
         </script>
     </body>
 </html>
