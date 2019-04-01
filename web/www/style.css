@@ -1,6 +1,8 @@
 body {
   background-color: #101010;
   font-family: "Lato", sans-serif;
+  margin-bottom: 0;
+  margin-right: 0;
 }
 
 .hamburger-icon {
